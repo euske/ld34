@@ -10,45 +10,17 @@ define(Obstacle, Actor, 'Actor', {
 });
 
 
-// Pigeon
-function Pigeon(bounds)
+// Actor2
+function Actor2(bounds, hitbox, tileno)
 {
-  this._Actor(bounds, bounds, 0);
-  this.speed = 4;
-  this.jumpacc = -4;
-  this.gravity = 1;
-  this.maxspeed = 4;
+  this._Actor(bounds, hitbox, tileno);
   this.velocity = new Vec2();
-  this.flying = false;
 }
 
-define(Pigeon, Actor, 'Actor', {
+define(Actor2, Actor, 'Actor', {
   update: function () {
     this._Actor_update();
-    
-    if (this.flying) {
-      this.velocity.y = this.jumpacc;
-      this.tileno = 1;
-    } else {
-      this.tileno = 0;
-    }
-    this.velocity.x = this.speed;
-    this.velocity.y += this.gravity;
-    this.velocity.y = clamp(-this.maxspeed, this.velocity.y, this.maxspeed);
     var v = this.velocity.copy();
-    {
-      var rect = this.hitbox.copy();
-      var d0 = this.hitbox.contactHLine(v.copy(), this.scene.groundY,
-					-Infinity, +Infinity);
-      rect.x += d0.x;
-      rect.y += d0.y;
-      v.x -= d0.x;
-      v.y -= d0.y;
-      var d1 = this.hitbox.contactHLine(new Vec2(v.x,0), this.scene.groundY,
-					-Infinity, +Infinity);
-      v.x = d0.x+d1.x;
-      v.y = d0.y+d1.y;
-    }
     var hitbox2 = this.hitbox.union(this.hitbox.movev(v));
     var objs = this.scene.colliders;
     for (var i = 0; i < objs.length; i++) {
@@ -72,9 +44,43 @@ define(Pigeon, Actor, 'Actor', {
       }
     }
     this.velocity = v;
-    this.flapped = (this.velocity.x < 0);
-    this.phase = blink(this.getTime(), 10)? 0 : 1;
+    this.flipped = (this.velocity.x < 0);
     this.move(v.x, v.y);
+    var rect = this.hitbox.clamp(this.scene.world);
+    v = rect.diff(this.hitbox);
+    this.move(v.x, v.y);
+  },
+});
+
+
+// Pigeon
+function Pigeon(bounds)
+{
+  this._Actor2(bounds, bounds, 0);
+  this.speed = 4;
+  this.jumpacc = -4;
+  this.gravity = 1;
+  this.maxspeed = 4;
+  this.flying = false;
+}
+
+define(Pigeon, Actor2, 'Actor2', {
+  update: function () {
+    if (this.flying) {
+      this.velocity.y = this.jumpacc;
+      this.tileno = 1;
+    } else {
+      this.tileno = 0;
+    }
+    if (this.hitbox.x + this.velocity.x < this.scene.world.x ||
+	this.scene.world.right() < this.hitbox.right() + this.velocity.x) {
+      this.speed = -this.speed;
+    }
+    this.velocity.x = this.speed;
+    this.velocity.y += this.gravity;
+    this.velocity.y = clamp(-this.maxspeed, this.velocity.y, this.maxspeed);
+    this.phase = blink(this.getTime(), 10)? 0 : 1;
+    this._Actor2_update();
   },
 });
 
@@ -84,6 +90,8 @@ define(Pigeon, Actor, 'Actor', {
 function Game(app)
 {
   this._GameScene(app);
+  this.tilesize = 16;
+  this.world = new Rect(0, 0, this.frame.width, this.frame.height*16);
   this.window = this.frame.copy();
 }
 
@@ -92,9 +100,17 @@ define(Game, GameScene, 'GameScene', {
     this._GameScene_init();
 
     var app = this.app;
-    this.groundY = this.frame.height;
-    this.player = new Pigeon(new Rectangle(0,this.groundY-16, 16,16));
+    var tilesize = this.tilesize;
+    this.player = new Pigeon(new Rect(0,this.world.bottom()-tilesize, tilesize,tilesize));
     this.addObject(this.player);
+    
+    for (var i = 0; i < 20; i++) {
+      var x = rnd(Math.floor(this.world.width/tilesize));
+      var y = rnd(Math.floor(this.world.height/tilesize));
+      var rect = new Rect(x*tilesize, y*tilesize, tilesize, tilesize);
+      var obj = new Obstacle(rect);
+      this.addObject(obj);
+    }
   },
 
   setCenter: function (rect) {
@@ -112,15 +128,23 @@ define(Game, GameScene, 'GameScene', {
     } else if (this.window.y+this.window.height < rect.y+rect.height) {
       this.window.y = rect.y+rect.height - this.window.height;
     }
-    //this.window.x = clamp(0, this.window.x, this.world.width-this.window.width);
-    //this.window.y = clamp(0, this.window.y, this.groundY-this.window.height);
-    this.window.y = Math.min(this.window.y, this.groundY-this.window.height);
+    this.window.x = clamp(0, this.window.x, this.world.width-this.window.width);
+    this.window.y = clamp(0, this.window.y, this.world.height-this.window.height);
   },
 
   render: function (ctx, bx, by) {
     // Fill with the background color.
-    ctx.fillStyle = 'rgb(0,100,255)';
-    ctx.fillRect(bx, by, this.frame.width, this.frame.height);
+    ctx.clearRect(bx, by, this.frame.width, this.frame.height);
+    var by1 = this.window.y/4;
+    ctx.drawImage(this.app.images.bkgnd1,
+		  this.window.x, by1, this.window.width, this.window.height,
+		  bx, by, this.frame.width, this.frame.height);
+    var by2 = 1000-this.window.y/2;
+    ctx.drawImage(this.app.images.bkgnd2,
+		  bx, by2, this.frame.width, this.frame.height);
+    var bkgnd3 = this.app.images.bkgnd3;
+    var by3 = this.world.height-bkgnd3.height-this.window.y;
+    ctx.drawImage(bkgnd3, bx, by3);
     
     // Draw the sprites.
     for (var i = 0; i < this.sprites.length; i++) {
@@ -137,13 +161,7 @@ define(Game, GameScene, 'GameScene', {
 
   update: function () {
     this._GameScene_update(this);
-    this.setCenter(this.player.bounds.inflate(60, 40));
-    if (rnd(10) == 0) {
-      var y = this.window.y+rnd(this.window.height);
-      var rect = new Rectangle(this.window.right(), y, 16, 16);
-      var obj = new Obstacle(rect);
-      this.addObject(obj);
-    }
+    this.setCenter(this.player.bounds.inflate(0, 60));
   },
 
   keydown: function (key) {

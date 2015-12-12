@@ -164,6 +164,9 @@ define(Rectangle, Object, '', {
   moveTo: function (x, y) {
     return new Rectangle(x-this.width/2, y-this.height/2, this.width, this.height);  
   },
+  diff: function (rect) {
+    return new Vec2(this.x-rect.x, this.y-rect.y);
+  },
   inflate: function (dw, dh) {
     return new Rectangle(this.x-dw, this.y-dh, this.width+dw*2, this.height+dh*2);
   },
