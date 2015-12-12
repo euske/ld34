@@ -5,25 +5,104 @@ function Tree(bounds)
 {
   this._Sprite(bounds);
   this.zorder = -1;
+  this.height = 0;
+  this.cells = [{x:0, y:0, stage:-1}];
+  this.growq = [];
 }
   
 define(Tree, Sprite, 'Sprite', {
+  grow: function () {
+    if ((this.height % 2) != 0) {
+      this.growq.push({ x:0, y:this.height, stage:1 });
+      this.growq.push({ x:-1, y:this.height, stage:1 });
+      this.growq.push({ x:+1, y:this.height, stage:1 });
+    } else {
+      this.growq.push({ x:0, y:this.height, stage:0 });
+    }
+    this.height++;
+  },
+
+  getRect: function (x, y) {
+    return new Rect(this.bounds.x+this.bounds.width*x,
+		    this.bounds.y-this.bounds.height*y,
+		    this.bounds.width, this.bounds.height);
+  },
+
+  getCellRects: function (hitbox) {
+    var rects = [];
+    for (var i = 0; i < this.cells.length; i++) {
+      var cell = this.cells[i];
+      if (cell.stage < 0) continue;
+      var rect = this.getRect(cell.x, cell.y);
+      if (rect.overlap(hitbox)) {
+	rects.push(rect);
+      }
+    }
+    return rects;
+  },
+
+  update: function () {
+    for (var i = 0; i < this.cells.length; i++) {
+      var cell = this.cells[i];
+      switch (cell.stage) {
+      case 1:
+	if (Math.abs(cell.x) < 3) {
+	  if (cell.x != 0) {
+	    var vx = (cell.x < 0)? -1 : +1;
+	    this.growq.push({ x:cell.x+vx, y:cell.y, stage:1 });
+	  }
+	  cell.stage++;
+	}
+	break;
+      case 2:
+	break;
+      }
+    }
+    for (var i = this.growq.length-1; 0 <= i; i--) {
+      var f = (function (obj) { return (obj instanceof Actor2); });
+      var cell = this.growq[i];
+      var rect = this.getRect(cell.x, cell.y);
+      var objs = this.scene.findObjects(rect, f);
+      if (objs.length == 0) {
+	this.cells.push(cell);
+	this.growq.splice(i, 1);
+      }
+    }
+  },
+  
   render: function (ctx, bx, by) {
-    var sprites = this.scene.app.tiles;
+    var tiles = this.scene.app.tiles;
     var tw = 16;
     var th = 16;
-    var bounds = this.bounds;
-    var tileno = 0;
-    if (this.flipped) {
-      drawImageFlipped(ctx, sprites,
-		       tileno*tw, 0, tw, th,
-		       bx+bounds.x, by+bounds.y,
-		       bounds.width, bounds.height);
-    } else {
-      ctx.drawImage(sprites,
-		    tileno*tw, 0, tw, th,
-		    bx+bounds.x, by+bounds.y,
-		    bounds.width, bounds.height);
+    for (var i = 0; i < this.cells.length; i++) {
+      var cell = this.cells[i];
+      var bounds = this.getRect(cell.x, cell.y);
+      var tileno = 0;
+      switch (cell.stage) {
+      case -1:
+	tileno = 0;
+	break;
+      case 0:
+	tileno = 7;
+	break;
+      case 1:
+	tileno = (cell.x == 0)? 1 : 3;
+	break;
+      case 2:
+	tileno = (cell.x == 0)? 1 : 2;
+	break;
+      }
+      if (cell.x < 0) {
+	drawImageFlipped(ctx, tiles,
+			 tileno*tw, 0, tw, th,
+			 bx+bounds.x, by+bounds.y,
+			 bounds.width, bounds.height);
+      } else {
+	ctx.drawImage(tiles,
+		      tileno*tw, 0, tw, th,
+		      bx+bounds.x, by+bounds.y,
+		      bounds.width, bounds.height);
+      }
     }
   },
 });
@@ -85,24 +164,26 @@ define(Actor2, Actor, 'Actor', {
     hitbox.x += d0.x;
     hitbox.y += d0.y;
     v = v.sub(d0);
-    var d1 = hitbox.contact(new Vec2(0,v.y), rect);
+    var d1 = hitbox.contact(new Vec2(v.x,0), rect);
     hitbox.x += d1.x;
     hitbox.y += d1.y;
     v = v.sub(d1);
-    var d2 = hitbox.contact(new Vec2(v.x,0), rect);
+    var d2 = hitbox.contact(new Vec2(0,v.y), rect);
     return new Vec2(d0.x+d1.x+d2.x,
 		    d0.y+d1.y+d2.y);
   },
   
   getMove: function (v) {
-    var hitbox2 = this.hitbox.union(this.hitbox.movev(v));
-    var objs = this.scene.colliders;
+    var box = this.hitbox.union(this.hitbox.movev(v));
+    var f = (function (obj) { return (obj instanceof Obstacle); });
+    var objs = this.scene.findObjects(box, f);
     for (var i = 0; i < objs.length; i++) {
       var obj = objs[i];
-      if (obj instanceof Obstacle && obj.hitbox !== null &&
-	  obj.hitbox.overlap(hitbox2)) {
-	v = this.getMoveFor(v, obj.hitbox);
-      }
+      v = this.getMoveFor(v, obj.hitbox);
+    }
+    var rects = this.scene.tree.getCellRects(box);
+    for (var i = 0; i < rects.length; i++) {
+      v = this.getMoveFor(v, rects[i]);
     }
     var rect = this.hitbox.movev(v).clamp(this.scene.world);
     return rect.diff(this.hitbox);
@@ -244,15 +325,16 @@ define(Game, GameScene, 'GameScene', {
     this.setCenter(this.player.bounds.inflate(0, 60));
   },
 
-  keydown: function (key) {
-    this._GameScene_keydown(key);
-    if (getKeySym(key) == 'action') {
-    }
-  },
-
   set_dir: function (vx, vy) {
     this._GameScene_set_dir(vx, vy);
     this.player.flying = (vy < 0);
+  },
+
+  set_action: function (action) {
+    this._GameScene_set_action(action);
+    if (action) {
+      this.tree.grow();
+    }
   },
 
 });
