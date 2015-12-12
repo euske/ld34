@@ -81,7 +81,8 @@ define(Tree, Sprite, 'Sprite', {
 	for (var j = 0; j < objs.length; j++) {
 	  var obj = objs[i];
 	  if (obj instanceof Obstacle ||
-	      obj instanceof Hazard) {
+	      obj instanceof Hazard ||
+	      obj instanceof Collectible) {
 	    obj.die();
 	  }
 	}
