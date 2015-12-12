@@ -11,7 +11,7 @@ function Tree(bounds)
 }
   
 define(Tree, Sprite, 'Sprite', {
-  grow: function () {
+  addGrow: function () {
     if ((this.height % 2) != 0) {
       this.growq.push({ x:0, y:this.height, stage:1 });
       this.growq.push({ x:-1, y:this.height, stage:1 });
@@ -41,7 +41,7 @@ define(Tree, Sprite, 'Sprite', {
     return rects;
   },
 
-  update: function () {
+  growCells: function () {
     for (var i = 0; i < this.cells.length; i++) {
       var cell = this.cells[i];
       switch (cell.stage) {
@@ -58,12 +58,26 @@ define(Tree, Sprite, 'Sprite', {
 	break;
       }
     }
+  },
+  
+  update: function () {
+    if ((this.getTime() % 10) == 0) {
+      this.growCells();
+    }
     for (var i = this.growq.length-1; 0 <= i; i--) {
-      var f = (function (obj) { return (obj instanceof Actor2); });
+      var f = (function (obj) { return true; });
       var cell = this.growq[i];
       var rect = this.getRect(cell.x, cell.y);
       var objs = this.scene.findObjects(rect, f);
-      if (objs.length == 0) {
+      if (objs.length != 0) {
+	for (var j = 0; j < objs.length; j++) {
+	  var obj = objs[i];
+	  if (obj instanceof Obstacle ||
+	      obj instanceof Hazard) {
+	    obj.die();
+	  }
+	}
+      } else {
 	this.cells.push(cell);
 	this.growq.splice(i, 1);
       }
@@ -116,6 +130,15 @@ function Obstacle(bounds, hitbox, tileno)
 define(Obstacle, Actor, 'Actor', {
 });
 
+// Hazard
+function Hazard(bounds, hitbox, tileno)
+{
+  this._Actor(bounds, hitbox, tileno);
+}
+  
+define(Hazard, Actor, 'Actor', {
+});
+
 // Collectible
 function Collectible(bounds, hitbox, tileno)
 {
@@ -135,6 +158,14 @@ function Brick(bounds)
 define(Brick, Obstacle, 'Obstacle', {
 });
 
+// Bomb
+function Bomb(bounds)
+{
+  this._Hazard(bounds, bounds, 4);
+}
+  
+define(Bomb, Hazard, 'Hazard', {
+});
 
 // Balloon
 function Balloon(bounds)
@@ -207,6 +238,8 @@ function Pigeon(bounds)
   this.gravity = 1;
   this.maxspeed = 4;
   this.flying = false;
+  this.health = 5;
+  this.invuln = 0;
 }
 
 define(Pigeon, Actor2, 'Actor2', {
@@ -223,12 +256,23 @@ define(Pigeon, Actor2, 'Actor2', {
     this.velocity.y += this.gravity;
     this.velocity.y = clamp(-this.maxspeed, this.velocity.y, this.maxspeed);
     this.phase = blink(this.getTime(), 10)? 0 : 1;
+    if (this.invuln) {
+      this.invuln--;
+      this.visible = blink(this.getTime(), 10);
+    } else {
+      this.visible = true;
+    }
     this._Actor2_update();
   },
 
   collide: function (obj) {
     if (obj instanceof Collectible) {
       obj.die();
+    } else if (obj instanceof Hazard) {
+      if (this.invuln == 0) {
+	this.invuln = 50;
+	this.health--;
+      }
     }
   },
   
@@ -272,6 +316,22 @@ define(Game, GameScene, 'GameScene', {
       var obj = new Balloon(rect);
       this.addObject(obj);
     }
+
+    for (var i = 0; i < 20; i++) {
+      var x = rnd(Math.floor(this.world.width/tilesize));
+      var y = rnd(Math.floor(this.world.height/tilesize));
+      var rect = new Rect(x*tilesize, y*tilesize, tilesize, tilesize);
+      var obj = new Bomb(rect);
+      this.addObject(obj);
+    }
+
+    var textbox = new TextBoxTT(MakeRect(this.frame.center()).expand(100, 80), app.font);
+    textbox.background = 'rgba(0,0,0,0.5)'
+    textbox.padding = 8;
+    textbox.linespace = 4;
+    textbox.addDisplay('UP...FLY\nSPACE...GROW', 2);
+    textbox.duration = app.framerate*4;
+    this.addObject(textbox);
   },
 
   setCenter: function (rect) {
@@ -333,7 +393,7 @@ define(Game, GameScene, 'GameScene', {
   set_action: function (action) {
     this._GameScene_set_action(action);
     if (action) {
-      this.tree.grow();
+      this.tree.addGrow();
     }
   },
 
