@@ -1,5 +1,15 @@
 // game.js
 
+// Obstacle
+function Obstacle(bounds)
+{
+  this._Actor(bounds, bounds, 'red');
+}
+  
+define(Obstacle, Actor, 'Actor', {
+});
+
+
 // Pigeon
 function Pigeon(bounds)
 {
@@ -25,25 +35,37 @@ define(Pigeon, Actor, 'Actor', {
     this.velocity.x = this.speed;
     this.velocity.y += this.gravity;
     this.velocity.y = clamp(-this.maxspeed, this.velocity.y, this.maxspeed);
-    var v = this.hitbox.contactHLine(this.velocity, this.scene.groundY,
-				     -Infinity, +Infinity);
+    var v = this.velocity.copy();
+    {
+      var rect = this.hitbox.copy();
+      var d0 = this.hitbox.contactHLine(v.copy(), this.scene.groundY,
+					-Infinity, +Infinity);
+      rect.x += d0.x;
+      rect.y += d0.y;
+      v.x -= d0.x;
+      v.y -= d0.y;
+      var d1 = this.hitbox.contactHLine(new Vec2(v.x,0), this.scene.groundY,
+					-Infinity, +Infinity);
+      v.x = d0.x+d1.x;
+      v.y = d0.y+d1.y;
+    }
     var hitbox2 = this.hitbox.union(this.hitbox.movev(v));
     var objs = this.scene.colliders;
     for (var i = 0; i < objs.length; i++) {
       var obj = objs[i];
-      if (obj instanceof Actor && obj !== this && obj.hitbox !== null &&
+      if (obj instanceof Obstacle && obj.hitbox !== null &&
 	  obj.hitbox.overlap(hitbox2)) {
 	var rect = this.hitbox.copy();
-	var d0 = rect.contact(v, obj.hitbox);
+	var d0 = rect.contact(v.copy(), obj.hitbox);
 	rect.x += d0.x;
 	rect.y += d0.y;
 	v.x -= d0.x;
-	v.y -= d0.x;
+	v.y -= d0.y;
 	var d1 = rect.contact(new Vec2(0,v.y), obj.hitbox);
 	rect.x += d1.x;
 	rect.y += d1.y;
 	v.x -= d1.x;
-	v.y -= d1.x;
+	v.y -= d1.y;
 	var d2 = rect.contact(new Vec2(v.x,0), obj.hitbox);
 	v.x = d0.x+d1.x+d2.x;
 	v.y = d0.y+d1.y+d2.y;
@@ -51,18 +73,9 @@ define(Pigeon, Actor, 'Actor', {
     }
     this.velocity = v;
     this.flapped = (this.velocity.x < 0);
-    this.phase = (this.phase+1) % 2;
+    this.phase = blink(this.getTime(), 10)? 0 : 1;
     this.move(v.x, v.y);
   },
-});
-
-// Obstacle
-function Obstacle(bounds)
-{
-  this._Actor(bounds, bounds, 'red');
-}
-  
-define(Obstacle, Actor, 'Actor', {
 });
 
 
