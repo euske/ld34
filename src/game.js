@@ -173,7 +173,7 @@ define(Brick, Obstacle, 'Obstacle', {
 // Bomb
 function Bomb(bounds)
 {
-  this._Hazard(bounds, bounds, 4);
+  this._Hazard(bounds, bounds, 5);
 }
   
 define(Bomb, Hazard, 'Hazard', {
@@ -182,7 +182,7 @@ define(Bomb, Hazard, 'Hazard', {
 // Balloon
 function Balloon(bounds)
 {
-  this._Collectible(bounds, bounds, 3);
+  this._Collectible(bounds, bounds, 3); // or 4
 }
   
 define(Balloon, Collectible, 'Collectible', {
@@ -217,6 +217,7 @@ define(Actor2, Actor, 'Actor', {
   },
   
   getMove: function (v) {
+    if (this.hitbox === null) return v;
     var box = this.hitbox.union(this.hitbox.movev(v));
     var f = (function (obj) { return (obj instanceof Obstacle); });
     var objs = this.scene.findObjects(box, f);
@@ -234,9 +235,11 @@ define(Actor2, Actor, 'Actor', {
   
   update: function () {
     this._Actor_update();
-    this.velocity = this.getMove(this.velocity);
-    this.flipped = (this.velocity.x < 0);
-    this.move(this.velocity.x, this.velocity.y);
+    if (this.scene.isActive()) {
+      this.velocity = this.getMove(this.velocity);
+      this.flipped = (this.velocity.x < 0);
+      this.move(this.velocity.x, this.velocity.y);
+    }
   },
 });
 
@@ -250,40 +253,54 @@ function Pigeon(bounds)
   this.gravity = 1;
   this.maxspeed = 4;
   this.flying = false;
-  this.health = 5;
+  this.health = 1;
   this.invuln = 0;
+  this.zorder = 1;
 }
 
 define(Pigeon, Actor2, 'Actor2', {
   update: function () {
-    var v = this.getMove(this.velocity);
-    if (v.x != this.velocity.x) {
-      this.speed = -this.speed;
+    if (this.scene.isActive()) {
+      if (0 < this.health) {
+	var v = this.getMove(this.velocity);
+	if (v.x != this.velocity.x) {
+	  this.speed = -this.speed;
+	}
+	this.tileno = (v.y != 0)? 1 : 0;
+	if (this.flying) {
+	  this.velocity.y = this.jumpacc;
+	}
+	this.velocity.x = this.speed;
+	if (0 < this.invuln) {
+	  this.invuln--;
+	  this.visible = blink(this.getTime(), 10);
+	} else {
+	  this.visible = true;
+	}
+      }
+      this.velocity.y += this.gravity;
+      this.velocity.y = clamp(-this.maxspeed, this.velocity.y, this.maxspeed);
     }
-    this.tileno = (v.y != 0)? 1 : 0;
-    if (this.flying) {
-      this.velocity.y = this.jumpacc;
-    }
-    this.velocity.x = this.speed;
-    this.velocity.y += this.gravity;
-    this.velocity.y = clamp(-this.maxspeed, this.velocity.y, this.maxspeed);
     this.phase = blink(this.getTime(), 10)? 0 : 1;
-    if (this.invuln) {
-      this.invuln--;
-      this.visible = blink(this.getTime(), 10);
-    } else {
-      this.visible = true;
-    }
     this._Actor2_update();
   },
 
   collide: function (obj) {
-    if (obj instanceof Collectible) {
-      obj.die();
-    } else if (obj instanceof Hazard) {
-      if (this.invuln == 0) {
-	this.invuln = 50;
-	this.health--;
+    if (this.scene.isActive()) {
+      if (obj instanceof Collectible) {
+	obj.die();
+      } else if (obj instanceof Hazard) {
+	if (this.invuln == 0) {
+	  this.health--;
+	  if (this.health == 0) {
+	    this.visible = true;
+	    this.tileno = 6;
+	    this.hitbox = null;
+	    this.velocity = new Vec2();
+	  } else {
+	    this.invuln = 50;
+	  }
+	}
       }
     }
   },
@@ -337,13 +354,20 @@ define(Game, GameScene, 'GameScene', {
       this.addObject(obj);
     }
 
-    var textbox = new TextBoxTT(MakeRect(this.frame.center()).expand(100, 80), app.font);
-    textbox.background = 'rgba(0,0,0,0.5)'
-    textbox.padding = 8;
-    textbox.linespace = 4;
-    textbox.addDisplay('UP...FLY\nSPACE...GROW', 2);
-    textbox.duration = app.framerate*3;
-    this.addObject(textbox);
+    var text = new TextBox(this.frame, app.font);
+    this.textHealth = text.addSegment(new Vec2(4,4), '\x7f', app.colorfont);
+    this.addObject(text);
+    
+    rect = MakeRect(this.frame.anchor(0,1)).expand(100, 40, 0, 1).move(0, 20);
+    this.textbox = new TextBoxTT(rect, app.font);
+    this.textbox.background = 'rgba(0,0,0,0.5)'
+    this.textbox.padding = 8;
+    this.textbox.linespace = 4;
+    this.textbox.addDisplay('FLY BIRD..UP\n', 2);
+    this.textbox.addDisplay('GROW...SPACE\n', 2);
+    this.textbox.addDisplay('REACH TOP!!', 2);
+    this.textbox.duration = app.framerate*4;
+    this.addObject(this.textbox);
   },
 
   setCenter: function (rect) {
@@ -395,6 +419,22 @@ define(Game, GameScene, 'GameScene', {
   update: function () {
     this._GameScene_update(this);
     this.setCenter(this.player.bounds.inflate(0, 60));
+    this.textHealth.text = '';
+    for (var i = 0; i < this.player.health; i++) {
+      this.textHealth.text += '\x7f';
+    }
+  },
+
+  keydown: function (key) {
+    this._GameScene_keydown(key);
+    if (this.textbox.visible) {
+      this.textbox.ff();
+      this.textbox.visible = false;
+    }
+  },
+
+  isActive: function () {
+    return (!this.textbox.visible);
   },
 
   set_dir: function (vx, vy) {
