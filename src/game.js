@@ -215,13 +215,13 @@ define(Game, GameScene, 'GameScene', {
 
   keydown: function (key) {
     this._GameScene_keydown(key);
-    if (getKeySym(key) == 'action2') {
+    if (getKeySym(key) == 'action') {
     }
   },
 
-  set_action: function (action) {
-    this._GameScene_set_action(action);
-    this.player.flying = action;
+  set_dir: function (vx, vy) {
+    this._GameScene_set_dir(vx, vy);
+    this.player.flying = (vy < 0);
   },
 
 });

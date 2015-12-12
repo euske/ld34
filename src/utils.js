@@ -229,11 +229,10 @@ function getKeySym(keyCode)
     return 'down';
   case 16:			// SHIFT
   case 32:			// SPACE
-  case 90:			// Z
-    return 'action';
   case 13:			// ENTER
   case 88:			// X
-    return 'action2';
+  case 90:			// Z
+    return 'action';
   case 8:			// BACKSPACE
   case 27:			// ESCAPE
     return 'cancel';
