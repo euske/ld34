@@ -1,5 +1,33 @@
 // game.js
 
+// Tree
+function Tree(bounds)
+{
+  this._Sprite(bounds);
+  this.zorder = -1;
+}
+  
+define(Tree, Sprite, 'Sprite', {
+  render: function (ctx, bx, by) {
+    var sprites = this.scene.app.tiles;
+    var tw = 16;
+    var th = 16;
+    var bounds = this.bounds;
+    var tileno = 0;
+    if (this.flipped) {
+      drawImageFlipped(ctx, sprites,
+		       tileno*tw, 0, tw, th,
+		       bx+bounds.x, by+bounds.y,
+		       bounds.width, bounds.height);
+    } else {
+      ctx.drawImage(sprites,
+		    tileno*tw, 0, tw, th,
+		    bx+bounds.x, by+bounds.y,
+		    bounds.width, bounds.height);
+    }
+  },
+});
+
 // Obstacle
 function Obstacle(bounds, hitbox, tileno)
 {
@@ -51,33 +79,33 @@ function Actor2(bounds, hitbox, tileno)
 }
 
 define(Actor2, Actor, 'Actor', {
+  getMoveFor: function (v, rect) {
+    var hitbox = this.hitbox.copy();
+    var d0 = hitbox.contact(v, rect);
+    hitbox.x += d0.x;
+    hitbox.y += d0.y;
+    v = v.sub(d0);
+    var d1 = hitbox.contact(new Vec2(0,v.y), rect);
+    hitbox.x += d1.x;
+    hitbox.y += d1.y;
+    v = v.sub(d1);
+    var d2 = hitbox.contact(new Vec2(v.x,0), rect);
+    return new Vec2(d0.x+d1.x+d2.x,
+		    d0.y+d1.y+d2.y);
+  },
+  
   getMove: function (v) {
     var hitbox2 = this.hitbox.union(this.hitbox.movev(v));
     var objs = this.scene.colliders;
-    v = v.copy();
     for (var i = 0; i < objs.length; i++) {
       var obj = objs[i];
       if (obj instanceof Obstacle && obj.hitbox !== null &&
 	  obj.hitbox.overlap(hitbox2)) {
-	var rect = this.hitbox.copy();
-	var d0 = rect.contact(v.copy(), obj.hitbox);
-	rect.x += d0.x;
-	rect.y += d0.y;
-	v.x -= d0.x;
-	v.y -= d0.y;
-	var d1 = rect.contact(new Vec2(0,v.y), obj.hitbox);
-	rect.x += d1.x;
-	rect.y += d1.y;
-	v.x -= d1.x;
-	v.y -= d1.y;
-	var d2 = rect.contact(new Vec2(v.x,0), obj.hitbox);
-	v.x = d0.x+d1.x+d2.x;
-	v.y = d0.y+d1.y+d2.y;
+	v = this.getMoveFor(v, obj.hitbox);
       }
     }
     var rect = this.hitbox.movev(v).clamp(this.scene.world);
-    v = rect.diff(this.hitbox);
-    return v;
+    return rect.diff(this.hitbox);
   },
   
   update: function () {
@@ -142,8 +170,11 @@ define(Game, GameScene, 'GameScene', {
 
     var app = this.app;
     var tilesize = this.tilesize;
-    this.player = new Pigeon(MakeRect(this.world.anchor(0,-1)).expand(tilesize, tilesize, 0, -1));
+    var rect = MakeRect(this.world.anchor(0,-1)).expand(tilesize, tilesize, 0, -1);
+    this.player = new Pigeon(rect.copy());
     this.addObject(this.player);
+    this.tree = new Tree(rect.copy());
+    this.addObject(this.tree);
     
     for (var i = 0; i < 20; i++) {
       var x = rnd(Math.floor(this.world.width/tilesize));
