@@ -12,10 +12,18 @@ function Tree(bounds)
   
 define(Tree, Sprite, 'Sprite', {
   addGrow: function () {
+    for (var i = 0; i < this.cells.length; i++) {
+      var cell = this.cells[i];
+      switch (cell.stage) {
+      case 0:
+	cell.stage++;
+	break;
+      }
+    }
     if ((this.height % 2) != 0) {
-      this.growq.push({ x:0, y:this.height, stage:1 });
-      this.growq.push({ x:-1, y:this.height, stage:1 });
-      this.growq.push({ x:+1, y:this.height, stage:1 });
+      this.growq.push({ x:0, y:this.height, stage:2 });
+      this.growq.push({ x:-1, y:this.height, stage:2 });
+      this.growq.push({ x:+1, y:this.height, stage:2 });
     } else {
       this.growq.push({ x:0, y:this.height, stage:0 });
     }
@@ -45,16 +53,16 @@ define(Tree, Sprite, 'Sprite', {
     for (var i = 0; i < this.cells.length; i++) {
       var cell = this.cells[i];
       switch (cell.stage) {
-      case 1:
+      case 2:
 	if (Math.abs(cell.x) < 3) {
 	  if (cell.x != 0) {
 	    var vx = (cell.x < 0)? -1 : +1;
-	    this.growq.push({ x:cell.x+vx, y:cell.y, stage:1 });
+	    this.growq.push({ x:cell.x+vx, y:cell.y, stage:2 });
 	  }
 	  cell.stage++;
 	}
 	break;
-      case 2:
+      case 3:
 	break;
       }
     }
@@ -97,13 +105,16 @@ define(Tree, Sprite, 'Sprite', {
 	tileno = 0;
 	break;
       case 0:
-	tileno = 7;
+	tileno = 1;
 	break;
       case 1:
-	tileno = (cell.x == 0)? 1 : 3;
+	tileno = 8;
 	break;
       case 2:
-	tileno = (cell.x == 0)? 1 : 2;
+	tileno = (cell.x == 0)? 2 : 4;
+	break;
+      case 3:
+	tileno = (cell.x == 0)? 2 : 3;
 	break;
       }
       if (cell.x < 0) {
@@ -330,7 +341,7 @@ define(Game, GameScene, 'GameScene', {
     textbox.padding = 8;
     textbox.linespace = 4;
     textbox.addDisplay('UP...FLY\nSPACE...GROW', 2);
-    textbox.duration = app.framerate*4;
+    textbox.duration = app.framerate*3;
     this.addObject(textbox);
   },
 
