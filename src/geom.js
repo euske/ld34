@@ -183,7 +183,7 @@ define(Rectangle, Object, '', {
     }
     if (0 < vy) {
       y = this.y;
-    } else if (vx < 0) {
+    } else if (vy < 0) {
       y = this.y-dh;
     } else {
       y = this.y-dh/2;
