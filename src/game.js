@@ -3,7 +3,7 @@
 // Pigeon
 function Pigeon(bounds)
 {
-  this._Actor(bounds, bounds, 'gray');
+  this._Actor(bounds, bounds, 0);
   this.speed = 4;
   this.jumpacc = -4;
   this.gravity = 1;
@@ -18,6 +18,9 @@ define(Pigeon, Actor, 'Actor', {
     
     if (this.flying) {
       this.velocity.y = this.jumpacc;
+      this.tileno = 1;
+    } else {
+      this.tileno = 0;
     }
     this.velocity.x = this.speed;
     this.velocity.y += this.gravity;
@@ -47,6 +50,8 @@ define(Pigeon, Actor, 'Actor', {
       }
     }
     this.velocity = v;
+    this.flapped = (this.velocity.x < 0);
+    this.phase = (this.phase+1) % 2;
     this.move(v.x, v.y);
   },
 });
