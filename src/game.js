@@ -1,12 +1,45 @@
 // game.js
 
 // Obstacle
-function Obstacle(bounds)
+function Obstacle(bounds, hitbox, tileno)
 {
-  this._Actor(bounds, bounds, 'red');
+  this._Actor(bounds, hitbox, tileno);
 }
   
 define(Obstacle, Actor, 'Actor', {
+});
+
+// Collectible
+function Collectible(bounds, hitbox, tileno)
+{
+  this._Actor(bounds, hitbox, tileno);
+}
+  
+define(Collectible, Actor, 'Actor', {
+});
+
+
+// Brick
+function Brick(bounds)
+{
+  this._Obstacle(bounds, bounds, 2);
+}
+  
+define(Brick, Obstacle, 'Obstacle', {
+});
+
+
+// Balloon
+function Balloon(bounds)
+{
+  this._Collectible(bounds, bounds, 3);
+}
+  
+define(Balloon, Collectible, 'Collectible', {
+  update: function () {
+    this.phase = blink(this.getTime(), 20)? 0 : 1;
+    this._Collectible_update();
+  },
 });
 
 
@@ -18,11 +51,10 @@ function Actor2(bounds, hitbox, tileno)
 }
 
 define(Actor2, Actor, 'Actor', {
-  update: function () {
-    this._Actor_update();
-    var v = this.velocity.copy();
+  getMove: function (v) {
     var hitbox2 = this.hitbox.union(this.hitbox.movev(v));
     var objs = this.scene.colliders;
+    v = v.copy();
     for (var i = 0; i < objs.length; i++) {
       var obj = objs[i];
       if (obj instanceof Obstacle && obj.hitbox !== null &&
@@ -43,12 +75,16 @@ define(Actor2, Actor, 'Actor', {
 	v.y = d0.y+d1.y+d2.y;
       }
     }
-    this.velocity = v;
-    this.flipped = (this.velocity.x < 0);
-    this.move(v.x, v.y);
-    var rect = this.hitbox.clamp(this.scene.world);
+    var rect = this.hitbox.movev(v).clamp(this.scene.world);
     v = rect.diff(this.hitbox);
-    this.move(v.x, v.y);
+    return v;
+  },
+  
+  update: function () {
+    this._Actor_update();
+    this.velocity = this.getMove(this.velocity);
+    this.flipped = (this.velocity.x < 0);
+    this.move(this.velocity.x, this.velocity.y);
   },
 });
 
@@ -66,15 +102,13 @@ function Pigeon(bounds)
 
 define(Pigeon, Actor2, 'Actor2', {
   update: function () {
+    var v = this.getMove(this.velocity);
+    if (v.x != this.velocity.x) {
+      this.speed = -this.speed;
+    }
+    this.tileno = (v.y != 0)? 1 : 0;
     if (this.flying) {
       this.velocity.y = this.jumpacc;
-      this.tileno = 1;
-    } else {
-      this.tileno = 0;
-    }
-    if (this.hitbox.x + this.velocity.x < this.scene.world.x ||
-	this.scene.world.right() < this.hitbox.right() + this.velocity.x) {
-      this.speed = -this.speed;
     }
     this.velocity.x = this.speed;
     this.velocity.y += this.gravity;
@@ -82,6 +116,13 @@ define(Pigeon, Actor2, 'Actor2', {
     this.phase = blink(this.getTime(), 10)? 0 : 1;
     this._Actor2_update();
   },
+
+  collide: function (obj) {
+    if (obj instanceof Collectible) {
+      obj.die();
+    }
+  },
+  
 });
 
 
@@ -101,14 +142,22 @@ define(Game, GameScene, 'GameScene', {
 
     var app = this.app;
     var tilesize = this.tilesize;
-    this.player = new Pigeon(new Rect(0,this.world.bottom()-tilesize, tilesize,tilesize));
+    this.player = new Pigeon(MakeRect(this.world.anchor(0,-1)).expand(tilesize, tilesize, 0, -1));
     this.addObject(this.player);
     
     for (var i = 0; i < 20; i++) {
       var x = rnd(Math.floor(this.world.width/tilesize));
       var y = rnd(Math.floor(this.world.height/tilesize));
       var rect = new Rect(x*tilesize, y*tilesize, tilesize, tilesize);
-      var obj = new Obstacle(rect);
+      var obj = new Brick(rect);
+      this.addObject(obj);
+    }
+    
+    for (var i = 0; i < 20; i++) {
+      var x = rnd(Math.floor(this.world.width/tilesize));
+      var y = rnd(Math.floor(this.world.height/tilesize));
+      var rect = new Rect(x*tilesize, y*tilesize, tilesize, tilesize);
+      var obj = new Balloon(rect);
       this.addObject(obj);
     }
   },
@@ -133,13 +182,13 @@ define(Game, GameScene, 'GameScene', {
   },
 
   render: function (ctx, bx, by) {
-    // Fill with the background color.
-    ctx.clearRect(bx, by, this.frame.width, this.frame.height);
-    var by1 = this.window.y/4;
+    // Draw the background.
+    var bkgnd1 = this.app.images.bkgnd1;
+    var by1 = Math.floor(this.window.y*bkgnd1.height/this.world.height);
     ctx.drawImage(this.app.images.bkgnd1,
-		  this.window.x, by1, this.window.width, this.window.height,
+		  0, by1, this.window.width, this.window.height,
 		  bx, by, this.frame.width, this.frame.height);
-    var by2 = 1000-this.window.y/2;
+    var by2 = 1000-Math.floor(this.window.y/2);
     ctx.drawImage(this.app.images.bkgnd2,
 		  bx, by2, this.frame.width, this.frame.height);
     var bkgnd3 = this.app.images.bkgnd3;
@@ -166,6 +215,8 @@ define(Game, GameScene, 'GameScene', {
 
   keydown: function (key) {
     this._GameScene_keydown(key);
+    if (getKeySym(key) == 'action2') {
+    }
   },
 
   set_action: function (action) {
