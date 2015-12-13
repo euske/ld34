@@ -11,21 +11,42 @@ function Tree(bounds)
 }
   
 define(Tree, Sprite, 'Sprite', {
-  addGrow: function () {
-    for (var i = 0; i < this.cells.length; i++) {
+  growCells: function () {
+    for (var i = this.cells.length-1; 0 <= i; i--) {
       var cell = this.cells[i];
       switch (cell.stage) {
+      case -1:
+	this.growq.push({ x:0, y:this.height, stage:0 });
+	this.cells.splice(i, 1);
+	break;
       case 0:
+	cell.stage = 1;
+	break;
+      case 1:
+	break;
+      case 2:
+	if (Math.abs(cell.x) < 3) {
+	  if (cell.x != 0) {
+	    var vx = (cell.x < 0)? -1 : +1;
+	    this.growq.push({ x:cell.x+vx, y:cell.y, stage:2 });
+	  }
+	  cell.stage++;
+	}
+	break;
+      default:
 	cell.stage++;
 	break;
       }
     }
-    if ((this.height % 2) != 0) {
-      this.growq.push({ x:0, y:this.height, stage:2 });
-      this.growq.push({ x:-1, y:this.height, stage:2 });
-      this.growq.push({ x:+1, y:this.height, stage:2 });
-    } else {
-      this.growq.push({ x:0, y:this.height, stage:0 });
+
+    if (0 < this.height) {
+      if ((this.height % 2) != 0) {
+	this.growq.push({ x:0, y:this.height, stage:2 });
+	this.growq.push({ x:-1, y:this.height, stage:2 });
+	this.growq.push({ x:+1, y:this.height, stage:2 });
+      } else {
+	this.growq.push({ x:0, y:this.height, stage:0 });
+      }
     }
     this.height++;
   },
@@ -48,30 +69,8 @@ define(Tree, Sprite, 'Sprite', {
     }
     return rects;
   },
-
-  growCells: function () {
-    for (var i = 0; i < this.cells.length; i++) {
-      var cell = this.cells[i];
-      switch (cell.stage) {
-      case 2:
-	if (Math.abs(cell.x) < 3) {
-	  if (cell.x != 0) {
-	    var vx = (cell.x < 0)? -1 : +1;
-	    this.growq.push({ x:cell.x+vx, y:cell.y, stage:2 });
-	  }
-	  cell.stage++;
-	}
-	break;
-      case 3:
-	break;
-      }
-    }
-  },
   
   update: function () {
-    if ((this.getTime() % 10) == 0) {
-      this.growCells();
-    }
     for (var i = this.growq.length-1; 0 <= i; i--) {
       var f = (function (obj) { return true; });
       var cell = this.growq[i];
@@ -114,7 +113,7 @@ define(Tree, Sprite, 'Sprite', {
       case 2:
 	tileno = (cell.x == 0)? 2 : 4;
 	break;
-      case 3:
+      default:
 	tileno = (cell.x == 0)? 2 : 3;
 	break;
       }
@@ -245,15 +244,15 @@ define(Actor2, Actor, 'Actor', {
 
 
 // Pigeon
-function Pigeon(bounds)
+function Pigeon(bounds, health)
 {
   this._Actor2(bounds, bounds, 0);
+  this.health = health;
   this.speed = 4;
   this.jumpacc = -4;
   this.gravity = 1;
   this.maxspeed = 4;
   this.flying = false;
-  this.health = 1;
   this.invuln = 0;
   this.zorder = 1;
 }
@@ -325,7 +324,7 @@ define(Game, GameScene, 'GameScene', {
     var app = this.app;
     var tilesize = this.tilesize;
     var rect = MakeRect(this.world.anchor(0,-1)).expand(tilesize, tilesize, 0, -1);
-    this.player = new Pigeon(rect.copy());
+    this.player = new Pigeon(rect.copy(), 5);
     this.addObject(this.player);
     this.tree = new Tree(rect.copy());
     this.addObject(this.tree);
@@ -355,7 +354,7 @@ define(Game, GameScene, 'GameScene', {
     }
 
     var text = new TextBox(this.frame, app.font);
-    this.textHealth = text.addSegment(new Vec2(4,4), '\x7f', app.colorfont);
+    this.textHealth = text.addSegment(new Vec2(2,2), '\x7f', app.colorfont);
     this.addObject(text);
     
     rect = MakeRect(this.frame.anchor(0,1)).expand(100, 40, 0, 1).move(0, 20);
@@ -445,7 +444,7 @@ define(Game, GameScene, 'GameScene', {
   set_action: function (action) {
     this._GameScene_set_action(action);
     if (action) {
-      this.tree.addGrow();
+      this.tree.growCells();
     }
   },
 
