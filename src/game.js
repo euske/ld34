@@ -1,10 +1,9 @@
 // game.js
 
 // Tree
-function Tree(bounds, growth)
+function Tree(bounds)
 {
   this._Sprite(bounds);
-  this.growth = growth;
   this.zorder = -1;
   this.height = 0;
   this.cells = [];
@@ -114,17 +113,35 @@ define(Tree, Sprite, 'Sprite', {
 	var bounds = this.getRect(cell.x, cell.y);
 	var tileno;
 	if (cell.stage == 0) {
-	  tileno = 1;
+	  tileno = (this.scene.treeDead === 0)? 1 : 8;
 	} else if (cell.stage == 1) {
 	  tileno = 8;
 	} else {
 	  if ((cell.y % 2) == 0) {
 	    tileno = 8;
 	  } else {
-	    if (cell.x == 0) {
-	      tileno = 2;
-	    } else {
-	      tileno = (cell.leaf)? 4 : 3;
+	    switch (this.scene.treeDead) {
+	    case 0:
+	      if (cell.x == 0) {
+		tileno = 2;
+	      } else {
+		tileno = (cell.leaf)? 4 : 3;
+	      }
+	      break;
+	    case 1:
+	      if (cell.x == 0) {
+		tileno = 5;
+	      } else {
+		tileno = (cell.leaf)? 7 : 6;
+	      }
+	      break;
+	    default:
+	      if (cell.x == 0) {
+		tileno = 9;
+	      } else {
+		tileno = (cell.leaf)? 11 : 10;
+	      }
+	      break;
 	    }
 	  }
 	}
@@ -193,7 +210,7 @@ define(Bomb, Hazard, 'Hazard', {
 // Balloon
 function Balloon(bounds, growth)
 {
-  var tileno = (growth < 2)? 3 : 4;
+  var tileno = (growth <= 2)? 3 : 4;
   this._Collectible(bounds, bounds, tileno);
   this.growth = growth;
 }
@@ -293,6 +310,8 @@ define(Pigeon, Actor2, 'Actor2', {
       }
       this.velocity.y += this.gravity;
       this.velocity.y = clamp(-this.maxspeed, this.velocity.y, this.maxspeed);
+    } else {
+      this.visible = true;
     }
     this.phase = blink(this.getTime(), 10)? 0 : 1;
     this._Actor2_update();
@@ -303,7 +322,7 @@ define(Pigeon, Actor2, 'Actor2', {
       if (obj instanceof Collectible) {
 	playSound(this.scene.app.audios.pick);
 	obj.die();
-	this.scene.updateGrowth(obj.growth);
+	this.scene.updateEnergy(obj.growth);
       } else if (obj instanceof Hazard) {
 	obj.die();
 	if (this.invuln == 0) {
@@ -311,6 +330,7 @@ define(Pigeon, Actor2, 'Actor2', {
 	  this.health--;
 	  this.scene.updateHealth();
 	  if (this.health == 0) {
+	    this.scene.app.lockKeys();
 	    this.visible = true;
 	    this.tileno = 6;
 	    this.hitbox = null;
@@ -346,28 +366,44 @@ define(Game, GameScene, 'GameScene', {
     var rect = MakeRect(this.world.anchor(0,-1)).expand(tilesize, tilesize, 0, -1);
     this.player = new Pigeon(rect.copy(), 5);
     this.addObject(this.player);
-    this.tree = new Tree(rect.copy(), 10);
+    this.tree = new Tree(rect.move(0, -tilesize));
     this.addObject(this.tree);
+    this.goal = new Rect(0, 0, this.world.width, this.window.height/2);
+    //this.goal = new Rect(0, 0, this.world.width, this.world.height-this.window.height*3);
+    this.treeEnergy = 10;
+    this.treeDead = 0;
+    this.ending = false;
+
+    var w = Math.floor(this.world.width/tilesize);
+    var y0 = Math.floor(this.window.height/tilesize);
+    var y1 = Math.floor((this.world.height-this.window.height*2)/tilesize);
     
+    var yb = Math.floor(this.world.height/tilesize)-5;
+    for (var x = 0; x < w; x++) {
+      var rect = new Rect(x*tilesize, yb*tilesize, tilesize, tilesize);
+      var obj = new Brick(rect);
+      this.addObject(obj);
+    }
     for (var i = 0; i < 20; i++) {
-      var x = rnd(Math.floor(this.world.width/tilesize));
-      var y = rnd(Math.floor(this.world.height/tilesize));
+      var x = rnd(w);
+      var y = rnd(y0, y1);
+      y = Math.floor(y/2)*2+1;
       var rect = new Rect(x*tilesize, y*tilesize, tilesize, tilesize);
       var obj = new Brick(rect);
       this.addObject(obj);
     }
     
-    for (var i = 0; i < 20; i++) {
-      var x = rnd(Math.floor(this.world.width/tilesize));
-      var y = rnd(Math.floor(this.world.height/tilesize));
+    for (var i = 0; i < 50; i++) {
+      var x = rnd(w);
+      var y = rnd(y0, y1);
       var rect = new Rect(x*tilesize, y*tilesize, tilesize, tilesize);
       var obj = new Balloon(rect, (rnd(2)+1)*2);
       this.addObject(obj);
     }
 
     for (var i = 0; i < 20; i++) {
-      var x = rnd(Math.floor(this.world.width/tilesize));
-      var y = rnd(Math.floor(this.world.height/tilesize));
+      var x = rnd(w);
+      var y = rnd(y0, y1);
       var rect = new Rect(x*tilesize, y*tilesize, tilesize, tilesize);
       var obj = new Bomb(rect);
       this.addObject(obj);
@@ -375,22 +411,24 @@ define(Game, GameScene, 'GameScene', {
 
     var text = new TextBox(this.frame, app.font);
     this.textHealth = text.addSegment(new Vec2(2,2), '\x7f', app.colorfont);
-    this.textGrowth = text.addSegment(new Vec2(2,2), '~', app.colorfont);
+    this.textEnergy = text.addSegment(new Vec2(2,2), '~', app.colorfont);
     this.addObject(text);
     
-    rect = MakeRect(this.frame.anchor(0,1)).expand(100, 48, 0, 1).move(0, 20);
+    rect = MakeRect(this.frame.anchor(0,1)).expand(100, 64, 0, 1).move(0, 20);
     this.textbox = new TextBoxTT(rect, app.font);
+    this.textbox.zorder = 10;
     this.textbox.background = 'rgba(0,0,0,0.5)'
     this.textbox.padding = 8;
     this.textbox.linespace = 4;
+    this.textbox.autohide = true;
     this.textbox.addDisplay('FLY BIRD..UP\n', 2);
     this.textbox.addDisplay('TREE...SPACE\n\n', 2);
     this.textbox.addDisplay('REACH MOON!', 2);
-    this.textbox.duration = app.framerate*4;
+    this.textbox.addPause(app.framerate*2);
     this.addObject(this.textbox);
 
     this.updateHealth();
-    this.updateGrowth(0);
+    this.updateEnergy(0);
   },
 
   setCenter: function (rect) {
@@ -441,7 +479,28 @@ define(Game, GameScene, 'GameScene', {
 
   update: function () {
     this._GameScene_update(this);
-    this.setCenter(this.player.bounds.inflate(0, 60));
+    if (!this.ending) {
+      this.setCenter(this.player.bounds.inflate(0, 60));
+      if (this.player.bounds.overlap(this.goal)) {
+	this.ending = true;
+	this.app.lockKeys();
+	this.initiateEnding();
+      }
+    } else {
+      // ending.
+      if (0 < this.treeDead) {
+	this.window.y += 4;
+	this.window.y = clamp(0, this.window.y, this.world.height-this.window.height);
+	if (this.world.height-this.window.height*2 < this.window.y) {
+	  if (this.treeDead != 3) {
+	    this.treeDead = 3;
+	    this.showCredit();
+	  }
+	} else if (this.world.height/2 < this.window.y) {
+	  this.treeDead = 2;
+	}
+      }
+    }
   },
 
   updateHealth: function () {
@@ -451,27 +510,54 @@ define(Game, GameScene, 'GameScene', {
     }
   },
 
-  updateGrowth: function (d) {
-    this.tree.growth += d;
-    var n = Math.floor(this.tree.growth/2);
-    this.textGrowth.text = '';
+  updateEnergy: function (d) {
+    this.treeEnergy += d;
+    var n = Math.floor(this.treeEnergy/2);
+    this.textEnergy.text = '';
     for (var i = 0; i < n; i++) {
-      this.textGrowth.text += '~';
+      this.textEnergy.text += '~';
     }
-    var s = this.app.font.getSize(this.textGrowth.text);
-    this.textGrowth.bounds.x = this.frame.width-2-s.x;
+    var s = this.app.font.getSize(this.textEnergy.text);
+    this.textEnergy.bounds.x = this.frame.width-2-s.x;
+  },
+
+  initiateEnding: function () {
+    this.textbox.clear();
+    this.textbox.addDisplay('"TREE,\n I MADE IT!\n TO MOON!\n', 2);
+    this.textbox.addPause(this.app.framerate);
+    this.textbox.addDisplay('"BIRD, GOOD\n JOB SON,\n BUT I\'M TOO\n TIRED NOW..\n', 2);
+    this.textbox.addPause(this.app.framerate*2);
+    var task = new TextTask(this.textbox);
+    var scene = this;
+    task.duration = 1;
+    task.died.subscribe(function () {
+      scene.treeEnergy = 0;
+      scene.treeDead = 1;
+    });
+    this.textbox.addTask(task);
+  },
+
+  showCredit: function () {
+    this.textbox.clear();
+    this.textbox.addDisplay('* PIGEON *\n\n', 2);
+    this.textbox.addPause(this.app.framerate);
+    this.textbox.addDisplay('CREATED BY\n  EUSKE\n  FOR LD34\n', 2);
+    this.textbox.addPause(this.app.framerate*5);
   },
   
   keydown: function (key) {
     this._GameScene_keydown(key);
-    if (this.textbox.visible) {
+    if (this.textbox.visible && !this.ending) {
       this.textbox.ff();
       this.textbox.visible = false;
+    } else if (this.player.health == 0) {
+      // reset game.
+      this.changeScene(new Game(this.app));
     }
   },
 
   isActive: function () {
-    return (!this.textbox.visible);
+    return (!this.textbox.visible && !this.ending);
   },
 
   set_dir: function (vx, vy) {
@@ -482,10 +568,10 @@ define(Game, GameScene, 'GameScene', {
   set_action: function (action) {
     this._GameScene_set_action(action);
     if (action) {
-      if (0 < this.tree.growth) {
+      if (0 < this.treeEnergy) {
+	this.updateEnergy(-1);
 	playSound(this.app.audios.grow);
 	this.tree.growCells();
-	this.updateGrowth(-1);
       }
     }
   },
