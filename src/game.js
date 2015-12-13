@@ -302,7 +302,8 @@ define(Actor2, Actor, 'Actor', {
 function Vulture(bounds)
 {
   this._Actor2(bounds, bounds, 7);
-  this.speed = 2;
+  this.speed = rnd(2)? -2 : +2;
+  this.velocity.x = this.speed;
 }
 
 define(Vulture, Actor2, 'Actor2', {
@@ -489,6 +490,7 @@ define(Game, GameScene, 'GameScene', {
 	if (this.addObject(obj)) break;
       }	
     }
+
     for (var i = 0; i < 10; i++) {
       while (true) {
 	var x = rnd(w);
