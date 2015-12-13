@@ -6,51 +6,11 @@ function Tree(bounds)
   this._Sprite(bounds);
   this.zorder = -1;
   this.height = 0;
-  this.cells = [{x:0, y:0, stage:-1}];
+  this.cells = [];
   this.growq = [];
 }
   
 define(Tree, Sprite, 'Sprite', {
-  growCells: function () {
-    for (var i = this.cells.length-1; 0 <= i; i--) {
-      var cell = this.cells[i];
-      switch (cell.stage) {
-      case -1:
-	this.growq.push({ x:0, y:this.height, stage:0 });
-	this.cells.splice(i, 1);
-	break;
-      case 0:
-	cell.stage = 1;
-	break;
-      case 1:
-	break;
-      case 2:
-	if (Math.abs(cell.x) < 3) {
-	  if (cell.x != 0) {
-	    var vx = (cell.x < 0)? -1 : +1;
-	    this.growq.push({ x:cell.x+vx, y:cell.y, stage:2 });
-	  }
-	  cell.stage++;
-	}
-	break;
-      default:
-	cell.stage++;
-	break;
-      }
-    }
-
-    if (0 < this.height) {
-      if ((this.height % 2) != 0) {
-	this.growq.push({ x:0, y:this.height, stage:2 });
-	this.growq.push({ x:-1, y:this.height, stage:2 });
-	this.growq.push({ x:+1, y:this.height, stage:2 });
-      } else {
-	this.growq.push({ x:0, y:this.height, stage:0 });
-      }
-    }
-    this.height++;
-  },
-
   getRect: function (x, y) {
     return new Rect(this.bounds.x+this.bounds.width*x,
 		    this.bounds.y-this.bounds.height*y,
@@ -61,7 +21,7 @@ define(Tree, Sprite, 'Sprite', {
     var rects = [];
     for (var i = 0; i < this.cells.length; i++) {
       var cell = this.cells[i];
-      if (cell.stage < 0) continue;
+      if (cell.leaf) continue;
       var rect = this.getRect(cell.x, cell.y);
       if (rect.overlap(hitbox)) {
 	rects.push(rect);
@@ -77,6 +37,7 @@ define(Tree, Sprite, 'Sprite', {
       var rect = this.getRect(cell.x, cell.y);
       var objs = this.scene.findObjects(rect, f);
       if (objs.length != 0) {
+	// crush objects when growing.
 	for (var j = 0; j < objs.length; j++) {
 	  var obj = objs[i];
 	  if (obj instanceof Obstacle ||
@@ -87,47 +48,96 @@ define(Tree, Sprite, 'Sprite', {
 	  }
 	}
       } else {
+	// spawn a tree cell.
 	this.cells.push(cell);
 	this.growq.splice(i, 1);
       }
     }
   },
   
+  growCells: function () {
+    for (var i = this.cells.length-1; 0 <= i; i--) {
+      var cell = this.cells[i];
+      var grow = false;
+      cell.stage++;
+      switch (cell.stage) {
+      case 1:
+	grow = true;
+	break;
+      case 2:
+	grow = true;
+	if ((cell.y % 2) != 0 && cell.x == 0) {
+	  this.growq.push({ x:cell.x-1, y:cell.y, stage:cell.stage, leaf:true });
+	  this.growq.push({ x:cell.x+1, y:cell.y, stage:cell.stage, leaf:true });
+	}
+	break;
+      case 3:
+      case 5:
+	grow = true;
+	if (cell.x != 0) {
+	  var vx = (cell.x < 0)? -1 : +1;
+	  this.growq.push({ x:cell.x+vx, y:cell.y, stage:cell.stage, leaf:true });
+	}
+	break;
+      case 10:
+	// decay?
+	//if (cell.x != 0) {
+	//  this.cells.splice(i, 1);
+	//}
+	break;
+      }
+      if (grow && cell.leaf) {
+	cell.leaf = false;
+	this.cells.splice(i, 1);
+	this.growq.push(cell);
+      }
+    }
+    this.growq.push({ x:0, y:this.height, stage:0, leaf:true });
+    this.height++;
+  },
+
   render: function (ctx, bx, by) {
     var tiles = this.scene.app.tiles;
     var tw = 16;
     var th = 16;
-    for (var i = 0; i < this.cells.length; i++) {
-      var cell = this.cells[i];
-      var bounds = this.getRect(cell.x, cell.y);
+    if (this.cells.length == 0) {
+      var bounds = this.getRect(0, 0);
       var tileno = 0;
-      switch (cell.stage) {
-      case -1:
-	tileno = 0;
-	break;
-      case 0:
-	tileno = 1;
-	break;
-      case 1:
-	tileno = 8;
-	break;
-      case 2:
-	tileno = (cell.x == 0)? 2 : 4;
-	break;
-      default:
-	tileno = (cell.x == 0)? 2 : 3;
-	break;
-      }
-      if (cell.x < 0) {
-	drawImageFlipped(ctx, tiles,
-			 tileno*tw, 0, tw, th,
-			 bx+bounds.x, by+bounds.y,
-			 bounds.width, bounds.height);
-      } else {
-	ctx.drawImage(tiles,
-		      tileno*tw, 0, tw, th,
-		      bx+bounds.x, by+bounds.y,
-		      bounds.width, bounds.height);
+      ctx.drawImage(tiles,
+		    tileno*tw, 0, tw, th,
+		    bx+bounds.x, by+bounds.y,
+		    bounds.width, bounds.height);
+    } else {
+      for (var i = 0; i < this.cells.length; i++) {
+	var cell = this.cells[i];
+	var bounds = this.getRect(cell.x, cell.y);
+	var tileno;
+	if (cell.stage == 0) {
+	  tileno = 1;
+	} else if (cell.stage == 1) {
+	  tileno = 8;
+	} else {
+	  if ((cell.y % 2) == 0) {
+	    tileno = 8;
+	  } else {
+	    if (cell.x == 0) {
+	      tileno = 2;
+	    } else {
+	      tileno = (cell.leaf)? 4 : 3;
+	    }
+	  }
+	}
+	if (cell.x < 0) {
+	  drawImageFlipped(ctx, tiles,
+			   tileno*tw, 0, tw, th,
+			   bx+bounds.x, by+bounds.y,
+			   bounds.width, bounds.height);
+	} else {
+	  ctx.drawImage(tiles,
+			tileno*tw, 0, tw, th,
+			bx+bounds.x, by+bounds.y,
+			bounds.width, bounds.height);
+	}
       }
     }
   },
@@ -261,7 +271,7 @@ function Pigeon(bounds, health)
 define(Pigeon, Actor2, 'Actor2', {
   update: function () {
     if (this.scene.isActive()) {
-      if (0 < this.health) {
+      if (this.hitbox !== null) {
 	var v = this.getMove(this.velocity);
 	if (v.x != this.velocity.x) {
 	  this.speed = -this.speed;
@@ -273,7 +283,7 @@ define(Pigeon, Actor2, 'Actor2', {
 	this.velocity.x = this.speed;
 	if (0 < this.invuln) {
 	  this.invuln--;
-	  this.visible = blink(this.getTime(), 10);
+	  this.visible = blink(this.getTime(), 4);
 	} else {
 	  this.visible = true;
 	}
