@@ -1,9 +1,10 @@
 // game.js
 
 // Tree
-function Tree(bounds)
+function Tree(bounds, growth)
 {
   this._Sprite(bounds);
+  this.growth = growth;
   this.zorder = -1;
   this.height = 0;
   this.cells = [];
@@ -190,9 +191,11 @@ define(Bomb, Hazard, 'Hazard', {
 });
 
 // Balloon
-function Balloon(bounds)
+function Balloon(bounds, growth)
 {
-  this._Collectible(bounds, bounds, 3); // or 4
+  var tileno = (growth < 2)? 3 : 4;
+  this._Collectible(bounds, bounds, tileno);
+  this.growth = growth;
 }
   
 define(Balloon, Collectible, 'Collectible', {
@@ -298,13 +301,15 @@ define(Pigeon, Actor2, 'Actor2', {
   collide: function (obj) {
     if (this.scene.isActive()) {
       if (obj instanceof Collectible) {
-	obj.die();
 	playSound(this.scene.app.audios.pick);
+	obj.die();
+	this.scene.updateGrowth(obj.growth);
       } else if (obj instanceof Hazard) {
 	obj.die();
 	if (this.invuln == 0) {
-	  this.health--;
 	  playSound(this.scene.app.audios.hurt);
+	  this.health--;
+	  this.scene.updateHealth();
 	  if (this.health == 0) {
 	    this.visible = true;
 	    this.tileno = 6;
@@ -341,7 +346,7 @@ define(Game, GameScene, 'GameScene', {
     var rect = MakeRect(this.world.anchor(0,-1)).expand(tilesize, tilesize, 0, -1);
     this.player = new Pigeon(rect.copy(), 5);
     this.addObject(this.player);
-    this.tree = new Tree(rect.copy());
+    this.tree = new Tree(rect.copy(), 10);
     this.addObject(this.tree);
     
     for (var i = 0; i < 20; i++) {
@@ -356,7 +361,7 @@ define(Game, GameScene, 'GameScene', {
       var x = rnd(Math.floor(this.world.width/tilesize));
       var y = rnd(Math.floor(this.world.height/tilesize));
       var rect = new Rect(x*tilesize, y*tilesize, tilesize, tilesize);
-      var obj = new Balloon(rect);
+      var obj = new Balloon(rect, (rnd(2)+1)*2);
       this.addObject(obj);
     }
 
@@ -370,18 +375,22 @@ define(Game, GameScene, 'GameScene', {
 
     var text = new TextBox(this.frame, app.font);
     this.textHealth = text.addSegment(new Vec2(2,2), '\x7f', app.colorfont);
+    this.textGrowth = text.addSegment(new Vec2(2,2), '~', app.colorfont);
     this.addObject(text);
     
-    rect = MakeRect(this.frame.anchor(0,1)).expand(100, 40, 0, 1).move(0, 20);
+    rect = MakeRect(this.frame.anchor(0,1)).expand(100, 48, 0, 1).move(0, 20);
     this.textbox = new TextBoxTT(rect, app.font);
     this.textbox.background = 'rgba(0,0,0,0.5)'
     this.textbox.padding = 8;
     this.textbox.linespace = 4;
     this.textbox.addDisplay('FLY BIRD..UP\n', 2);
-    this.textbox.addDisplay('GROW...SPACE\n', 2);
-    this.textbox.addDisplay('REACH TOP!!', 2);
+    this.textbox.addDisplay('TREE...SPACE\n\n', 2);
+    this.textbox.addDisplay('REACH MOON!', 2);
     this.textbox.duration = app.framerate*4;
     this.addObject(this.textbox);
+
+    this.updateHealth();
+    this.updateGrowth(0);
   },
 
   setCenter: function (rect) {
@@ -433,12 +442,26 @@ define(Game, GameScene, 'GameScene', {
   update: function () {
     this._GameScene_update(this);
     this.setCenter(this.player.bounds.inflate(0, 60));
+  },
+
+  updateHealth: function () {
     this.textHealth.text = '';
     for (var i = 0; i < this.player.health; i++) {
       this.textHealth.text += '\x7f';
     }
   },
 
+  updateGrowth: function (d) {
+    this.tree.growth += d;
+    var n = Math.floor(this.tree.growth/2);
+    this.textGrowth.text = '';
+    for (var i = 0; i < n; i++) {
+      this.textGrowth.text += '~';
+    }
+    var s = this.app.font.getSize(this.textGrowth.text);
+    this.textGrowth.bounds.x = this.frame.width-2-s.x;
+  },
+  
   keydown: function (key) {
     this._GameScene_keydown(key);
     if (this.textbox.visible) {
@@ -459,8 +482,11 @@ define(Game, GameScene, 'GameScene', {
   set_action: function (action) {
     this._GameScene_set_action(action);
     if (action) {
-      playSound(this.app.audios.grow);
-      this.tree.growCells();
+      if (0 < this.tree.growth) {
+	playSound(this.app.audios.grow);
+	this.tree.growCells();
+	this.updateGrowth(-1);
+      }
     }
   },
 
