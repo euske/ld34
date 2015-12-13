@@ -82,6 +82,7 @@ define(Tree, Sprite, 'Sprite', {
 	  if (obj instanceof Obstacle ||
 	      obj instanceof Hazard ||
 	      obj instanceof Collectible) {
+	    playSound(this.scene.app.audios.destroy);
 	    obj.die();
 	  }
 	}
@@ -288,9 +289,12 @@ define(Pigeon, Actor2, 'Actor2', {
     if (this.scene.isActive()) {
       if (obj instanceof Collectible) {
 	obj.die();
+	playSound(this.scene.app.audios.pick);
       } else if (obj instanceof Hazard) {
+	obj.die();
 	if (this.invuln == 0) {
 	  this.health--;
+	  playSound(this.scene.app.audios.hurt);
 	  if (this.health == 0) {
 	    this.visible = true;
 	    this.tileno = 6;
