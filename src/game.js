@@ -449,6 +449,7 @@ define(Game, GameScene, 'GameScene', {
   set_action: function (action) {
     this._GameScene_set_action(action);
     if (action) {
+      playSound(this.app.audios.grow);
       this.tree.growCells();
     }
   },

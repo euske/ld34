@@ -4,7 +4,7 @@ PYTHON=python
 SOX=sox
 LAME=lame
 
-ASSETS=pick.mp3 hurt.mp3 destroy.mp3 music.mp3 ending.mp3
+ASSETS=pick.mp3 hurt.mp3 grow.mp3 destroy.mp3 music.mp3 ending.mp3
 
 all: $(ASSETS)
 
