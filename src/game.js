@@ -387,7 +387,7 @@ define(Pigeon, Actor2, 'Actor2', {
 	    this.hitbox = null;
 	    this.velocity = new Vec2();
 	  } else {
-	    this.invuln = 50;
+	    this.invuln = this.scene.app.framerate;
 	  }
 	}
       }
@@ -470,7 +470,7 @@ define(Game, GameScene, 'GameScene', {
       }
     }
 
-    for (var i = 0; i < 5; i++) {
+    for (var i = 0; i < 3; i++) {
       while (true) {
 	var x = rnd(w);
 	var y = rnd(y0, y1);
