@@ -42,7 +42,8 @@ define(Tree, Sprite, 'Sprite', {
 	  var obj = objs[i];
 	  if (obj instanceof Obstacle ||
 	      obj instanceof Hazard ||
-	      obj instanceof Collectible) {
+	      obj instanceof Collectible ||
+	      obj instanceof Vulture) {
 	    playSound(this.scene.app.audios.destroy);
 	    obj.die();
 	  }
@@ -325,8 +326,9 @@ define(Vulture, Actor2, 'Actor2', {
 function Pigeon(bounds, health)
 {
   this._Actor2(bounds, bounds, 0);
+  this.health0 = health;
   this.health = health;
-  this.speed = 4;
+  this.speed = 2;
   this.jumpacc = -4;
   this.gravity = 1;
   this.maxspeed = 4;
@@ -367,7 +369,7 @@ define(Pigeon, Actor2, 'Actor2', {
     if (this.scene.isActive()) {
       if (obj instanceof Humberger) {
 	playSound(this.scene.app.audios.pick);
-	this.health++;
+	this.health = this.health0;
 	this.scene.updateHealth();
 	obj.die();
       } else if (obj instanceof Hazard ||
@@ -407,7 +409,7 @@ function Game(app)
 define(Game, GameScene, 'GameScene', {
   addObject: function (obj) {
     if (obj instanceof Actor) {
-      var f = (function (x) { return (x instanceof Obstacle); });
+      var f = (function (x) { return (x instanceof Actor); });
       if (obj.hitbox !== null) {
 	var a = this.findObjects(obj.hitbox, f);
 	if (a.length != 0) return false;
@@ -436,7 +438,9 @@ define(Game, GameScene, 'GameScene', {
 
     var w = Math.floor(this.world.width/tilesize);
     var y0 = Math.floor(this.window.height/tilesize);
-    var y1 = Math.floor((this.world.height-this.window.height*2)/tilesize);
+    var y1 = Math.floor((this.world.height-this.window.height)/tilesize);
+    var y2 = Math.floor(this.world.height/2/tilesize);
+    var y3 = Math.floor((this.world.height-this.window.height*2)/tilesize);
     
     var yb = Math.floor(this.world.height/tilesize)-5;
     for (var x = 0; x < w; x++) {
@@ -444,7 +448,7 @@ define(Game, GameScene, 'GameScene', {
       var obj = new Brick(rect);
       this.addObject(obj);
     }
-    for (var i = 0; i < 20; i++) {
+    for (var i = 0; i < 50; i++) {
       while (true) {
 	var x = rnd(w);
 	var y = rnd(y0, y1);
@@ -455,7 +459,7 @@ define(Game, GameScene, 'GameScene', {
       }
     }
     
-    for (var i = 0; i < 50; i++) {
+    for (var i = 0; i < 70; i++) {
       while (true) {
 	var x = rnd(w);
 	var y = rnd(y0, y1);
@@ -465,31 +469,31 @@ define(Game, GameScene, 'GameScene', {
       }
     }
 
-    for (var i = 0; i < 1; i++) {
+    for (var i = 0; i < 5; i++) {
       while (true) {
 	var x = rnd(w);
 	var y = rnd(y0, y1);
 	var rect = new Rect(x*tilesize, y*tilesize, tilesize, tilesize);
 	var obj = new Humberger(rect);
-	this.addObject(obj);
 	if (this.addObject(obj)) break;
       }
     }
 
-    for (var i = 0; i < 100; i++) {
+    for (var i = 0; i < 30; i++) {
       while (true) {
 	var x = rnd(w);
-	var y = rnd(y0, y1);
+	var y = rnd(y0, y3);
+	y = Math.floor(y/2)*2+1;
 	var rect = new Rect(x*tilesize, y*tilesize, tilesize, tilesize);
 	var obj = new Bomb(rect);
-	this.addObject(obj);
 	if (this.addObject(obj)) break;
       }	
     }
-    for (var i = 0; i < 100; i++) {
+    for (var i = 0; i < 10; i++) {
       while (true) {
 	var x = rnd(w);
-	var y = rnd(y0, y1);
+	var y = rnd(y0, y2);
+	y = Math.floor(y/2)*2+1;
 	var rect = new Rect(x*tilesize, y*tilesize, tilesize, tilesize);
 	var obj = new Vulture(rect);
 	if (this.addObject(obj)) break;
@@ -576,14 +580,14 @@ define(Game, GameScene, 'GameScene', {
     } else {
       // ending.
       if (0 < this.treeDead) {
-	this.window.y += 8;
+	this.window.y += 6;
 	this.window.y = clamp(0, this.window.y, this.world.height-this.window.height);
 	if (this.world.height-this.window.height*2 < this.window.y) {
 	  if (this.treeDead != 3) {
 	    this.treeDead = 3;
 	    this.showCredit();
 	  }
-	} else if (this.world.height/2 < this.window.y) {
+	} else if (this.world.height-this.window.height*4 < this.window.y) {
 	  this.treeDead = 2;
 	}
       }
@@ -618,7 +622,7 @@ define(Game, GameScene, 'GameScene', {
     var scene = this;
     task.duration = 1;
     task.died.subscribe(function () {
-      scene.treeEnergy = 0;
+      scene.updateEnergy(-scene.treeEnergy);
       scene.treeDead = 1;
     });
     this.textbox.addTask(task);
@@ -629,7 +633,7 @@ define(Game, GameScene, 'GameScene', {
     this.textbox.addDisplay('* PIGEON *\n\n', 2);
     this.textbox.addPause(this.app.framerate);
     this.textbox.addDisplay('CREATED BY\n  EUSKE\n  FOR LD34\n', 2);
-    this.textbox.addPause(this.app.framerate*5);
+    this.textbox.addPause(this.app.framerate*8);
   },
   
   keydown: function (key) {
