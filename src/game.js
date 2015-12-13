@@ -324,6 +324,7 @@ function Game(app)
 define(Game, GameScene, 'GameScene', {
   init: function () {
     this._GameScene_init();
+    this.app.set_music(this.app.audios.sound);
 
     var app = this.app;
     var tilesize = this.tilesize;
