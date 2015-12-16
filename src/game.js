@@ -545,6 +545,8 @@ define(Game, GameScene, 'GameScene', {
 
   render: function (ctx, bx, by) {
     // Draw the background.
+    ctx.fillStyle = 'rgb(0,0,255)';
+    ctx.fillRect(bx, by, this.frame.width, this.frame.height);
     var bkgnd1 = this.app.images.bkgnd1;
     var by1 = Math.floor(this.window.y*bkgnd1.height/this.world.height);
     ctx.drawImage(this.app.images.bkgnd1,
